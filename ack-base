@@ -3,7 +3,7 @@
 use warnings;
 use strict;
 
-our $VERSION = '1.92';
+our $VERSION = '1.92-ackmate';
 # Check http://betterthangrep.com/ for updates
 
 # These are all our globals.
@@ -79,6 +79,8 @@ sub main {
     my $what = App::Ack::get_starting_points( \@ARGV, $opt );
     my $iter = App::Ack::get_iterator( $what, $opt );
     App::Ack::filetype_setup();
+
+    App::Ack::ignore_dirpattern_setup( $opt );
 
     my $nmatches = 0;
 

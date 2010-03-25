@@ -12,7 +12,7 @@
 use warnings;
 use strict;
 
-our $VERSION = '1.92';
+our $VERSION = '1.92-ackmate';
 # Check http://betterthangrep.com/ for updates
 
 # These are all our globals.
@@ -87,6 +87,8 @@ sub main {
     my $what = App::Ack::get_starting_points( \@ARGV, $opt );
     my $iter = App::Ack::get_iterator( $what, $opt );
     App::Ack::filetype_setup();
+
+    App::Ack::ignore_dirpattern_setup( $opt );
 
     my $nmatches = 0;
 
@@ -1105,7 +1107,7 @@ use strict;
 our $VERSION;
 our $COPYRIGHT;
 BEGIN {
-    $VERSION = '1.92';
+    $VERSION = '1.92-ackmate';
     $COPYRIGHT = 'Copyright 2005-2009 Andy Lester.';
 }
 
@@ -1120,6 +1122,7 @@ our %types;
 our %type_wanted;
 our %mappings;
 our %ignore_dirs;
+our $ignore_dirpattern;
 
 our $input_from_pipe;
 our $output_to_pipe;
@@ -1256,6 +1259,8 @@ sub get_command_line_options {
 
     my $getopt_specs = {
         1                       => sub { $opt{1} = $opt{m} = 1 },
+        'ackmate!'              => \$opt{ackmate},
+        'ackmate-dir-filter=s'  => \$opt{ackmate_dir_filter},
         'A|after-context=i'     => \$opt{after_context},
         'B|before-context=i'    => \$opt{before_context},
         'C|context:i'           => sub { shift; my $val = shift; $opt{before_context} = $opt{after_context} = ($val || 2) },
@@ -1304,6 +1309,7 @@ sub get_command_line_options {
         'version'   => sub { print_version_statement(); exit 1; },
         'help|?:s'  => sub { shift; show_help(@_); exit; },
         'help-types'=> sub { show_help_types(); exit; },
+        'ackmate-types' => sub { show_ackmate_types(); exit; },
         'man'       => sub { require Pod::Usage; Pod::Usage::pod2usage({-verbose => 2}); exit; },
 
         'type=s'    => sub {
@@ -1347,6 +1353,7 @@ sub get_command_line_options {
         heading        => $to_screen,
         before_context => 0,
         after_context  => 0,
+        ackmate        => 0,
     );
     if ( $is_windows && $defaults{color} && not $ENV{ACK_PAGER_COLOR} ) {
         if ( $ENV{ACK_PAGER} || not eval { require Win32::Console::ANSI } ) {
@@ -1408,6 +1415,13 @@ sub get_command_line_options {
             # happens if there are only ignored --line directives
             App::Ack::die( 'All --line options are invalid.' );
         }
+    }
+
+    if ( $opt{ackmate} ) {
+      $opt{color} = 0;
+      $opt{heading} = 1;
+      $opt{break} = 0;
+      $opt{flush} = 1;
     }
 
     return \%opt;
@@ -1483,7 +1497,7 @@ sub delete_type {
 
 
 sub ignoredir_filter {
-    return !exists $ignore_dirs{$_};
+    return !( exists( $ignore_dirs{$_} ) || ( $ignore_dirpattern && $File::Next::dir =~ m/$ignore_dirpattern/ ) );
 }
 
 
@@ -1815,6 +1829,16 @@ END_OF_HELP
     return;
 }
 
+sub show_ackmate_types {
+    my @types = filetypes_supported();
+    for my $type ( sort @types ) {
+        next if $type =~ /^-/; # Stuff to not show
+        App::Ack::print($type, "\n");
+    }
+
+    return;
+}
+
 sub _listify {
     my @whats = @_;
 
@@ -2055,6 +2079,7 @@ sub print_match_or_context {
     my $heading       = $opt->{heading};
     my $show_filename = $opt->{show_filename};
     my $show_column   = $opt->{column};
+    my $ackmate       = $opt->{ackmate};
 
     if ( $show_filename ) {
         if ( not defined $display_filename ) {
@@ -2063,12 +2088,12 @@ sub print_match_or_context {
                     ? Term::ANSIColor::colored( $filename, $ENV{ACK_COLOR_FILENAME} )
                     : $filename;
             if ( $heading && !$any_output ) {
-                App::Ack::print_first_filename($display_filename);
+                App::Ack::print_first_filename( $ackmate ? ':' . $display_filename : $display_filename);
             }
         }
     }
 
-    my $sep = $is_match ? ':' : '-';
+    my $sep = ( $is_match || $ackmate ) ? ':' : '-';
     my $output_func = $opt->{output};
     for ( @_ ) {
         if ( $keep_context && !$output_func ) {
@@ -2083,7 +2108,7 @@ sub print_match_or_context {
 
         if ( $show_filename ) {
             App::Ack::print_filename($display_filename, $sep) if not $heading;
-            App::Ack::print_line_no($line_no, $sep);
+            App::Ack::print_line_no($line_no, $sep) if not $ackmate;
         }
 
         if ( $output_func ) {
@@ -2092,6 +2117,18 @@ sub print_match_or_context {
             }
         }
         else {
+            if ( $ackmate ) {
+                if ( $is_match && $regex ) {
+                  my @ranges;
+                  while ( /$regex/go ) {
+                    push(@ranges, $-[0] . ' ' . ($+[0] - $-[0])) if ($+[0] - $-[0]) > 0;
+                  }
+                  App::Ack::print_line_no($line_no, ';' . join(',', @ranges) . $sep);
+                }
+                else {
+                  App::Ack::print_line_no($line_no, $sep);
+                }
+            }
             if ( $color && $is_match && $regex &&
                  s/$regex/Term::ANSIColor::colored( substr($_, $-[0], $+[0] - $-[0]), $ENV{ACK_COLOR_MATCH} )/eg ) {
                 # At the end of the line reset the color and remove newline
@@ -2255,6 +2292,22 @@ sub filetype_setup {
         }
     }
     return;
+}
+
+
+sub ignore_dirpattern_setup {
+  my $opt = shift;
+  if ( defined $opt->{ackmate_dir_filter} ) {
+    my $fregex = $opt->{ackmate_dir_filter};
+    eval { qr/$fregex/ };
+    if ($@) {
+      (my $error = $@) =~ s/ at \S+ line \d+.*//;
+      chomp($error);
+      App::Ack::die( "Invalid TextMate folder regex '$fregex':\n  $error" );
+    }
+    $ignore_dirpattern = qr/$fregex/;
+  }
+  return;
 }
 
 
