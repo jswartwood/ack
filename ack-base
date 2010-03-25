@@ -3,7 +3,7 @@
 use warnings;
 use strict;
 
-our $VERSION = '1.94';
+our $VERSION = '1.94-ackmate';
 # Check http://betterthangrep.com/ for updates
 
 # These are all our globals.
@@ -32,9 +32,9 @@ MAIN: {
         unshift( @ARGV, App::Ack::read_ackrc() );
     }
     else {
-        my @keys = ( 'ACKRC', grep { /^ACK_/ } keys %ENV );
-        delete @ENV{@keys};
-    }
+            my @keys = ( 'ACKRC', grep { /^ACK_/ } keys %ENV );
+            delete @ENV{@keys};
+        }
     App::Ack::load_colors();
 
     if ( exists $ENV{ACK_SWITCHES} ) {
@@ -93,6 +93,8 @@ sub main {
     my $what = App::Ack::get_starting_points( \@ARGV, $opt );
     my $iter = App::Ack::get_iterator( $what, $opt );
     App::Ack::filetype_setup();
+
+    App::Ack::ignore_dirpattern_setup( $opt );
 
     my $nmatches = 0;
 

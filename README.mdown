@@ -1,0 +1,8 @@
+## THIS FORK OF ACK IS NOT INTENDED FOR GENERAL CONSUMPTION
+
+The changes in this fork are solely for the purpose of better integration with [AckMate](http://github.com/protocool/AckMate) and they will not be merged into the upstream 'official' release of ack.
+
+Pull requests will be refused unless they deal specifically with AckMate integration. 
+
+In particular, changes that add support for new filetypes should be directed at [http://github.com/petdance/ack](http://github.com/petdance/ack) as they will not be applied here.
+
