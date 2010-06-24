@@ -373,6 +373,7 @@ sub get_command_line_options {
     }
 
     if ( $opt{ackmate} ) {
+      $opt{regex} = Unicode::Normalize::NFC($opt{regex});
       $opt{color} = 0;
       $opt{heading} = 1;
       $opt{break} = 0;

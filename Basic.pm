@@ -123,7 +123,7 @@ sub needs_line_scan {
         App::Ack::warn( "$self->{filename}: $!" );
         return 1;
     }
-    return 0 unless $rc && ( $rc == $size );
+    return 0 unless $rc && ( $rc == $size || length(Encode::encode_utf8($buffer)) == $size );
 
     my $regex = $opt->{regex};
     return $buffer =~ /$regex/m;
