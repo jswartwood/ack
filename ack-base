@@ -2,6 +2,8 @@
 
 use warnings;
 use strict;
+use Unicode::Normalize;
+use Encode;
 
 our $VERSION = '1.92-ackmate';
 # Check http://betterthangrep.com/ for updates
